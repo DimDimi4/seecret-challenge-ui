@@ -1,5 +1,5 @@
 <template lang="pug">
-button.btn(type='submit', :disabled='disabled || loading')
+button.btn(:type='type', :disabled='disabled || loading')
     span(v-if='loading') Loading...
     span(v-else) {{ label }}
 </template>
@@ -7,6 +7,10 @@ button.btn(type='submit', :disabled='disabled || loading')
 <script lang="ts">
     export default {
         props: {
+            type: {
+                type: String,
+                default: 'submit',
+            },
             label: {
                 type: String,
                 default: 'Submit',
