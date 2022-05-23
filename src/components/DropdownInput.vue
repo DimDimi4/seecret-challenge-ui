@@ -2,14 +2,19 @@
 .sdd(v-click-outside='hideDropdown')
     .sdd__options(@click='focusOnInput')
         .sdd__selected
-            span(v-for='option in selected', :key='option') {{ option }}
-                i.close(@click='removeOption(option)')
+            .sdd__selected-wrapper(ref='selectedWrapper')
+                span(v-for='option in filterSelected', :key='option') {{ option }}
+                    i.close(@click='removeOption(option)')
+                span.muted(v-if='overflowCount > 0') ({{ overflowCount }} more)
         .sdd__input
             input(
                 ref='filterInput',
                 type='text',
                 :placeholder='placeholder',
-                @keyup='keyupEvent',
+                @keydown.arrow-up='activePrevOption',
+                @keydown.arrow-down='activeNextOption',
+                @keydown.backspace='filterBackspaced',
+                @keydown.prevent.enter='filterEntered',
                 @focus='showDropdown',
                 v-model='filterText'
             )
@@ -26,6 +31,8 @@
                 role='option',
                 tabIndex='-1'
             ) {{ option }}
+            li.option(v-if='showAddNew')
+                em Add new
 </template>
 
 <script lang="ts">
@@ -47,6 +54,7 @@
 
         data() {
             return {
+                overflowLimit: 0,
                 showOptions: false,
                 selected: [],
                 activeOption: '',
@@ -55,6 +63,11 @@
         },
 
         computed: {
+            filterSelected() {
+                return this.overflowLimit > 0
+                    ? this.selected.slice(0, this.overflowLimit - 1)
+                    : this.selected;
+            },
             filteredOptions() {
                 return this.options.filter(
                     (option) =>
@@ -67,13 +80,29 @@
             dropdownClass() {
                 return {
                     'sdd__dropdown--show':
-                        this.showOptions && this.filteredOptions.length > 0,
+                        (this.showOptions && this.filteredOptions.length > 0) ||
+                        this.showAddNew,
                 };
+            },
+            showAddNew() {
+                return (
+                    this.filteredOptions.length === 0 && this.filterText.length > 0
+                );
+            },
+            overflowCount() {
+                return (
+                    this.overflowLimit > 0 &&
+                    this.selected.length - this.overflowLimit
+                );
             },
         },
 
         mounted() {
-            this.selected = this.modelValue;
+            this.modelValue.forEach((option) => {
+                if (this.options.includes(option)) {
+                    this.addToSelected(option);
+                }
+            });
         },
 
         watch: {
@@ -90,9 +119,16 @@
 
             selected: {
                 handler() {
+                    setTimeout(() => {
+                        this.checkOverflow();
+                    }, 50);
                     this.$emit('input', this.selected);
                 },
                 deep: true,
+            },
+
+            filterText() {
+                this.activeOption = '';
             },
         },
 
@@ -109,28 +145,29 @@
             focusOnInput() {
                 this.$refs.filterInput.focus();
             },
-            keyupEvent(e) {
-                switch (e.code) {
-                    case 'ArrowUp':
-                        return this.activePrevOption();
-                    case 'ArrowDown':
-                        return this.activeNextOption();
-                    case 'Backspace':
-                        if (this.filterText === '' && this.selected.length > 0) {
-                            return this.selected.pop();
-                        }
-                        break;
-                    case 'NumpadEnter':
-                    case 'Enter':
-                        if (this.activeOption !== '') {
-                            return this.selectActive();
-                        }
 
-                        break;
+            filterBackspaced() {
+                if (this.filterText === '' && this.selected.length > 0) {
+                    return this.selected.pop();
+                }
+            },
+
+            filterEntered() {
+                if (this.activeOption !== '') {
+                    return this.selectActive();
+                }
+
+                if (this.showAddNew) {
+                    this.addToSelected(this.filterText);
+                    this.filterText = '';
                 }
             },
 
             activePrevOption() {
+                if (this.filteredOptions.length === 0) {
+                    return;
+                }
+
                 const index = this.filteredOptions.indexOf(this.activeOption);
                 if (index === -1) {
                     this.activeOption =
@@ -144,6 +181,10 @@
             },
 
             activeNextOption() {
+                if (this.filteredOptions.length === 0) {
+                    return;
+                }
+
                 const index = this.filteredOptions.indexOf(this.activeOption);
                 if (index === -1) {
                     this.activeOption = this.filteredOptions[0];
@@ -162,7 +203,7 @@
             selectActive() {
                 if (this.activeOption === '') return;
 
-                this.selected.push(this.activeOption);
+                this.addToSelected(this.activeOption);
                 this.filterText = '';
 
                 this.setFirstActive();
@@ -174,6 +215,40 @@
                     this.selected.splice(index, 1);
                 }
             },
+
+            addFromFilterText() {
+                this.addToSelected(this.filterText);
+                this.filterText = '';
+            },
+
+            addToSelected(option) {
+                if (this.selected.includes(option)) return;
+                this.selected.push(option);
+            },
+
+            checkOverflow() {
+                if (!this.$refs['selectedWrapper']) {
+                    return;
+                }
+
+                const el = this.$refs['selectedWrapper'];
+                if (el.clientWidth >= el.scrollWidth) {
+                    return;
+                }
+
+                const spans = el.getElementsByTagName('span');
+                let widthLimit = 100;
+                let overflowLimit = 0;
+                for (const span of spans) {
+                    widthLimit += span.clientWidth;
+                    if (widthLimit > el.clientWidth) {
+                        continue;
+                    }
+
+                    overflowLimit++;
+                }
+                this.overflowLimit = overflowLimit;
+            },
         },
     };
 </script>
@@ -182,15 +257,20 @@
 .sdd
     display: block
     position: relative
-    height: 50px
 
     &__options
         display: flex
         padding: 5px
         border: 1px solid #ccc
         border-radius: 10px
+        flex-wrap: wrap
 
     &__selected
+        max-width: 80%
+        overflow: hidden
+
+    &__selected-wrapper
+        white-space: nowrap
         display: flex
         height: 40px
         align-items: center
