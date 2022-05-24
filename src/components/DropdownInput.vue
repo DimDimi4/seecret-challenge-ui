@@ -97,14 +97,6 @@
             },
         },
 
-        mounted() {
-            this.modelValue.forEach((option) => {
-                if (this.options.includes(option)) {
-                    this.addToSelected(option);
-                }
-            });
-        },
-
         watch: {
             activeOption() {
                 const ref = this.$refs[`option${this.activeOption}`];
@@ -118,11 +110,20 @@
             },
 
             selected: {
-                handler() {
+                handler(newValue) {
                     setTimeout(() => {
                         this.checkOverflow();
                     }, 50);
-                    this.$emit('input', this.selected);
+                    this.$emit('update:modelValue', newValue);
+                },
+                deep: true,
+            },
+
+            modelValue: {
+                handler() {
+                    this.modelValue.forEach((option) => {
+                        this.addToSelected(option);
+                    });
                 },
                 deep: true,
             },

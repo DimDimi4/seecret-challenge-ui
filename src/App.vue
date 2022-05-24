@@ -33,6 +33,7 @@ main
             tr(v-for='path in list')
                 td(colspan='2')
                     code {{ path }}
+    em(v-if='list.length === 0 && fetched && !loading') No results found
 </template>
 
 <script lang="ts">
@@ -56,21 +57,26 @@ main
             };
         },
 
+        watch: {
+            selected: {
+                handler() {
+                    this.$cookies.set('selected', this.selected.join(','));
+                },
+                deep: true,
+            },
+        },
+
         mounted() {
             const selectedInCookies = this.$cookies.get('selected', '');
             if (selectedInCookies) {
                 selectedInCookies.split(',').forEach((option) => {
-                    if (this.options.includes(option)) {
-                        this.selected.push(option);
-                    }
+                    this.selected.push(option);
                 });
             }
         },
 
         methods: {
             onSubmit() {
-                this.$cookies.set('selected', this.selected.join(','));
-
                 const params = new URLSearchParams({
                     services: this.selected,
                 });
